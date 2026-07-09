@@ -17,13 +17,63 @@ function Stars({ rating }) {
   )
 }
 
+// Deliberately distinct from the Flutter app's brand-tinted category colors
+// (which all lean teal/purple/blue) - a conventional bug/suggestion/
+// compliment red/blue/green reads faster at a glance in a scan-heavy admin
+// list than reusing the app's exact palette would.
+const CATEGORY_META = {
+  bug: { label: 'Bug', color: '#E53935' },
+  suggestion: { label: 'Suggestion', color: '#1E88E5' },
+  compliment: { label: 'Compliment', color: '#43A047' },
+}
+
+const CATEGORY_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'bug', label: 'Bugs' },
+  { value: 'suggestion', label: 'Suggestions' },
+  { value: 'compliment', label: 'Compliments' },
+]
+
+function CategoryBadge({ category }) {
+  const meta = CATEGORY_META[category]
+  if (!meta) return null
+  return (
+    <span
+      className="category-badge"
+      style={{ background: `${meta.color}26`, color: meta.color }}
+    >
+      {meta.label}
+    </span>
+  )
+}
+
 export default function FeedbackTab({ onFeedbackChange }) {
   const [items, setItems] = useState(null)
   const [error, setError] = useState('')
   const [selectedId, setSelectedId] = useState(null)
+  const [categoryFilter, setCategoryFilter] = useState('all')
 
   useEffect(() => {
     loadList()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Keeps the list live while this tab is mounted - new submissions,
+  // status changes, and replies from either side all refresh it.
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-feedback-list')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'app_feedback' }, loadList)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_feedback' }, loadList)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'feedback_replies' },
+        loadList
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -72,41 +122,63 @@ export default function FeedbackTab({ onFeedbackChange }) {
     )
   }
 
+  const categoryCounts = {
+    all: items.length,
+    bug: items.filter((item) => item.category === 'bug').length,
+    suggestion: items.filter((item) => item.category === 'suggestion').length,
+    compliment: items.filter((item) => item.category === 'compliment').length,
+  }
+  const filteredItems =
+    categoryFilter === 'all' ? items : items.filter((item) => item.category === categoryFilter)
+
   return (
     <div className="dashboard">
       <h2 className="section-title">Feedback Inbox</h2>
-      <div className="feedback-list">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className={
-              item.needs_response ? 'feedback-row card needs-response' : 'feedback-row card'
-            }
-            onClick={() => setSelectedId(item.id)}
+      <div className="filter-chips">
+        {CATEGORY_FILTERS.map((f) => (
+          <button
+            key={f.value}
+            className={categoryFilter === f.value ? 'filter-chip active' : 'filter-chip'}
+            onClick={() => setCategoryFilter(f.value)}
           >
-            <div className="feedback-row-top">
-              <div className="feedback-row-title">
-                {item.needs_response && (
-                  <span className="needs-response-dot" aria-label="Needs response" />
-                )}
-                <Stars rating={item.rating} />
-              </div>
-              <span
-                className={
-                  item.status === 'resolved'
-                    ? 'status-badge resolved'
-                    : 'status-badge open'
-                }
-              >
-                {item.status === 'resolved' ? 'Resolved' : 'Open'}
-              </span>
-            </div>
-            <div className="feedback-category">{item.category}</div>
-            <p className="feedback-preview">{item.message || '(no message)'}</p>
-            <div className="feedback-meta">{formatDate(item.created_at)}</div>
-          </div>
+            {f.label} ({categoryCounts[f.value]})
+          </button>
         ))}
       </div>
+      {filteredItems.length === 0 ? (
+        <div className="card empty-state">
+          <p>No feedback in this category.</p>
+        </div>
+      ) : (
+        <div className="feedback-list">
+          {filteredItems.map((item) => (
+            <div
+              key={item.id}
+              className={item.unread ? 'feedback-row card unread' : 'feedback-row card'}
+              onClick={() => setSelectedId(item.id)}
+            >
+              <div className="feedback-row-top">
+                <div className="feedback-row-title">
+                  {item.unread && <span className="unread-dot" aria-label="Unread" />}
+                  <Stars rating={item.rating} />
+                </div>
+                <span
+                  className={
+                    item.status === 'resolved' ? 'status-badge resolved' : 'status-badge open'
+                  }
+                >
+                  {item.status === 'resolved' ? 'Resolved' : 'Open'}
+                </span>
+              </div>
+              <div className="feedback-category">
+                <CategoryBadge category={item.category} />
+              </div>
+              <p className="feedback-preview">{item.message || '(no message)'}</p>
+              <div className="feedback-meta">{formatDate(item.created_at)}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -123,6 +195,33 @@ function FeedbackThread({ feedbackId, onBack, onFeedbackChange }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feedbackId])
 
+  // Appends a new reply live if the user follows up while this thread is
+  // open, rather than requiring the admin to back out and reopen it.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`admin-feedback-thread-${feedbackId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'feedback_replies',
+          filter: `feedback_id=eq.${feedbackId}`,
+        },
+        (payload) => {
+          setThread((prev) => {
+            if (!prev) return prev
+            if (prev.replies.some((r) => r.id === payload.new.id)) return prev
+            return { ...prev, replies: [...prev.replies, payload.new] }
+          })
+        }
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [feedbackId])
+
   async function load() {
     const { data, error: rpcError } = await supabase.rpc('get_admin_feedback_thread', {
       p_feedback_id: feedbackId,
@@ -131,6 +230,10 @@ function FeedbackThread({ feedbackId, onBack, onFeedbackChange }) {
       setError(rpcError.message || 'Failed to load thread.')
     } else {
       setThread(data)
+      // Viewing this thread already marked it read server-side (a side
+      // effect of get_admin_feedback_thread); this lets the badge/list
+      // catch up without waiting for a reply, status change, or back-nav.
+      onFeedbackChange?.()
     }
   }
 
@@ -204,7 +307,7 @@ function FeedbackThread({ feedbackId, onBack, onFeedbackChange }) {
               </span>
             </div>
             <div className="feedback-category">
-              {thread.feedback.category}
+              <CategoryBadge category={thread.feedback.category} />
               {thread.feedback.user_email ? ` · ${thread.feedback.user_email}` : ''}
             </div>
             <p className="feedback-preview">{thread.feedback.message || '(no message)'}</p>

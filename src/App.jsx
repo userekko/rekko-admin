@@ -9,7 +9,7 @@ import FeedbackTab from './components/FeedbackTab'
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = not checked yet
   const [tab, setTab] = useState('metrics')
-  const [needsResponseCount, setNeedsResponseCount] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -23,18 +23,47 @@ export default function App() {
   // badge is accurate before the tab is ever opened. FeedbackTab calls
   // this again after any load/reply/status-toggle so the count stays in
   // sync with what's shown once you do open it.
-  const refreshNeedsResponseCount = useCallback(async () => {
+  const refreshUnreadCount = useCallback(async () => {
     const { data, error } = await supabase.rpc('get_admin_feedback_list')
     if (!error) {
-      setNeedsResponseCount((data ?? []).filter((item) => item.needs_response).length)
+      setUnreadCount((data ?? []).filter((item) => item.unread).length)
     }
   }, [])
 
+  const isAdmin = session?.user?.email === ADMIN_EMAIL
+
   useEffect(() => {
-    if (session?.user?.email === ADMIN_EMAIL) {
-      refreshNeedsResponseCount()
+    if (isAdmin) {
+      refreshUnreadCount()
     }
-  }, [session, refreshNeedsResponseCount])
+  }, [isAdmin, refreshUnreadCount])
+
+  // Keeps the tab badge accurate whether or not the Feedback tab itself is
+  // mounted - e.g. a new submission arriving while Metrics is showing.
+  useEffect(() => {
+    if (!isAdmin) return
+    const channel = supabase
+      .channel('admin-feedback-badge')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'app_feedback' },
+        refreshUnreadCount
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'app_feedback' },
+        refreshUnreadCount
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'feedback_replies' },
+        refreshUnreadCount
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [isAdmin, refreshUnreadCount])
 
   if (session === undefined) {
     return <div className="centered-page">Loading…</div>
@@ -60,13 +89,13 @@ export default function App() {
         email={email}
         tab={tab}
         onTabChange={setTab}
-        needsResponseCount={needsResponseCount}
+        unreadCount={unreadCount}
       />
       <main className="main-content">
         {tab === 'metrics' ? (
           <MetricsDashboard />
         ) : (
-          <FeedbackTab onFeedbackChange={refreshNeedsResponseCount} />
+          <FeedbackTab onFeedbackChange={refreshUnreadCount} />
         )}
       </main>
     </div>

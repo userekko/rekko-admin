@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient'
 
-export default function TopNav({ email, tab, onTabChange, needsResponseCount = 0 }) {
+export default function TopNav({ email, tab, onTabChange, unreadCount = 0 }) {
   return (
     <nav className="top-nav">
       <div className="top-nav-left">
@@ -16,10 +16,8 @@ export default function TopNav({ email, tab, onTabChange, needsResponseCount = 0
           onClick={() => onTabChange('feedback')}
         >
           Feedback
-          {needsResponseCount > 0 && (
-            <span className="nav-tab-badge">
-              {needsResponseCount > 9 ? '9+' : needsResponseCount}
-            </span>
+          {unreadCount > 0 && (
+            <span className="nav-tab-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
           )}
         </button>
       </div>
