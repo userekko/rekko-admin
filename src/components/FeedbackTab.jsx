@@ -17,13 +17,14 @@ function Stars({ rating }) {
   )
 }
 
-export default function FeedbackTab() {
+export default function FeedbackTab({ onFeedbackChange }) {
   const [items, setItems] = useState(null)
   const [error, setError] = useState('')
   const [selectedId, setSelectedId] = useState(null)
 
   useEffect(() => {
     loadList()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadList() {
@@ -33,6 +34,7 @@ export default function FeedbackTab() {
     } else {
       setItems(data ?? [])
     }
+    onFeedbackChange?.()
   }
 
   if (selectedId) {
@@ -43,6 +45,7 @@ export default function FeedbackTab() {
           setSelectedId(null)
           loadList()
         }}
+        onFeedbackChange={onFeedbackChange}
       />
     )
   }
@@ -76,11 +79,18 @@ export default function FeedbackTab() {
         {items.map((item) => (
           <div
             key={item.id}
-            className="feedback-row card"
+            className={
+              item.needs_response ? 'feedback-row card needs-response' : 'feedback-row card'
+            }
             onClick={() => setSelectedId(item.id)}
           >
             <div className="feedback-row-top">
-              <Stars rating={item.rating} />
+              <div className="feedback-row-title">
+                {item.needs_response && (
+                  <span className="needs-response-dot" aria-label="Needs response" />
+                )}
+                <Stars rating={item.rating} />
+              </div>
               <span
                 className={
                   item.status === 'resolved'
@@ -101,7 +111,7 @@ export default function FeedbackTab() {
   )
 }
 
-function FeedbackThread({ feedbackId, onBack }) {
+function FeedbackThread({ feedbackId, onBack, onFeedbackChange }) {
   const [thread, setThread] = useState(null)
   const [error, setError] = useState('')
   const [replyText, setReplyText] = useState('')
@@ -139,6 +149,7 @@ function FeedbackThread({ feedbackId, onBack }) {
     }
     setReplyText('')
     await load()
+    onFeedbackChange?.()
   }
 
   async function toggleStatus() {
@@ -155,6 +166,7 @@ function FeedbackThread({ feedbackId, onBack }) {
       return
     }
     await load()
+    onFeedbackChange?.()
   }
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ADMIN_EMAIL, supabase } from './supabaseClient'
 import Login from './components/Login'
 import Unauthorized from './components/Unauthorized'
@@ -9,6 +9,7 @@ import FeedbackTab from './components/FeedbackTab'
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = not checked yet
   const [tab, setTab] = useState('metrics')
+  const [needsResponseCount, setNeedsResponseCount] = useState(0)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -17,6 +18,23 @@ export default function App() {
     })
     return () => listener.subscription.unsubscribe()
   }, [])
+
+  // Fetched independently of the Feedback tab being mounted, so the nav
+  // badge is accurate before the tab is ever opened. FeedbackTab calls
+  // this again after any load/reply/status-toggle so the count stays in
+  // sync with what's shown once you do open it.
+  const refreshNeedsResponseCount = useCallback(async () => {
+    const { data, error } = await supabase.rpc('get_admin_feedback_list')
+    if (!error) {
+      setNeedsResponseCount((data ?? []).filter((item) => item.needs_response).length)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (session?.user?.email === ADMIN_EMAIL) {
+      refreshNeedsResponseCount()
+    }
+  }, [session, refreshNeedsResponseCount])
 
   if (session === undefined) {
     return <div className="centered-page">Loading…</div>
@@ -38,9 +56,18 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <TopNav email={email} tab={tab} onTabChange={setTab} />
+      <TopNav
+        email={email}
+        tab={tab}
+        onTabChange={setTab}
+        needsResponseCount={needsResponseCount}
+      />
       <main className="main-content">
-        {tab === 'metrics' ? <MetricsDashboard /> : <FeedbackTab />}
+        {tab === 'metrics' ? (
+          <MetricsDashboard />
+        ) : (
+          <FeedbackTab onFeedbackChange={refreshNeedsResponseCount} />
+        )}
       </main>
     </div>
   )

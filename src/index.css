@@ -108,6 +108,23 @@ input {
   color: var(--brand);
 }
 
+.nav-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: 6px;
+  border-radius: 8px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+
 .top-nav-right {
   display: flex;
   align-items: center;
@@ -329,11 +346,30 @@ input {
   border-color: var(--brand);
 }
 
+.feedback-row.needs-response {
+  background: rgba(0, 137, 123, 0.08);
+  border-color: rgba(0, 137, 123, 0.4);
+}
+
 .feedback-row-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
+}
+
+.feedback-row-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.needs-response-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--brand);
+  flex-shrink: 0;
 }
 
 .status-badge {
