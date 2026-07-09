@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Deployed as a GitHub Pages project site at
-// https://userekko.github.io/rekko-admin/ — base must match the repo name.
+// Deployed at the custom domain https://admin.userekko.com/ (via the
+// public/CNAME file) — served from the domain root, not a repo-name subpath.
 export default defineConfig({
   plugins: [react()],
-  base: '/rekko-admin/',
+  base: '/',
 })
