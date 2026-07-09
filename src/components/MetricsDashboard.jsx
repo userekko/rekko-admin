@@ -10,8 +10,23 @@ import {
 } from 'recharts'
 import { supabase } from '../supabaseClient'
 import StatCard from './StatCard'
+import InfoTooltip from './InfoTooltip'
 
 const BAR_COLOR = '#00897B'
+
+const DEFINITIONS = {
+  dau: 'Daily Active Users — how many unique people used the app in the last 24 hours.',
+  mau: 'Monthly Active Users — how many unique people used the app in the last 30 days.',
+  dauMau:
+    "A 'stickiness' score — what percentage of your monthly users come back on a typical day. Higher means people use the app more habitually.",
+  streak:
+    'How many users currently have a 0-day, 1-6 day, 7-29 day, or 30+ day consecutive logging streak.',
+  adoption:
+    'How many users have tried this feature at least once, and what percentage of your total users that represents.',
+  crashFree:
+    'The percentage of app sessions in the last 30 days that did NOT experience a crash. Higher is better — 100% would mean zero crashes.',
+  deletions: 'How many users deleted their account in this time window.',
+}
 
 function pct(n, total) {
   if (!total) return '0%'
@@ -109,11 +124,23 @@ export default function MetricsDashboard() {
           <StatCard label="Total users" value={stats.total_users} />
           <StatCard label="New signups (7d)" value={stats.new_signups_7d} />
           <StatCard label="New signups (30d)" value={stats.new_signups_30d} />
-          <StatCard label="DAU" value={stats.dau} />
-          <StatCard label="MAU" value={stats.mau} />
-          <StatCard label="DAU/MAU (stickiness)" value={`${dauMauRatio}%`} />
-          <StatCard label="Account deletions (7d)" value={stats.account_deletions_7d} />
-          <StatCard label="Account deletions (30d)" value={stats.account_deletions_30d} />
+          <StatCard label="DAU" value={stats.dau} tooltip={DEFINITIONS.dau} />
+          <StatCard label="MAU" value={stats.mau} tooltip={DEFINITIONS.mau} />
+          <StatCard
+            label="DAU/MAU (stickiness)"
+            value={`${dauMauRatio}%`}
+            tooltip={DEFINITIONS.dauMau}
+          />
+          <StatCard
+            label="Account deletions (7d)"
+            value={stats.account_deletions_7d}
+            tooltip={DEFINITIONS.deletions}
+          />
+          <StatCard
+            label="Account deletions (30d)"
+            value={stats.account_deletions_30d}
+            tooltip={DEFINITIONS.deletions}
+          />
         </div>
 
         <div className="card">
@@ -134,7 +161,10 @@ export default function MetricsDashboard() {
         <h2 className="section-title">Engagement</h2>
 
         <div className="card">
-          <h3 className="subsection-title">Streak distribution</h3>
+          <h3 className="subsection-title">
+            Streak distribution
+            <InfoTooltip text={DEFINITIONS.streak} />
+          </h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={streakData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -149,7 +179,10 @@ export default function MetricsDashboard() {
         </div>
 
         <div className="card">
-          <h3 className="subsection-title">Feature adoption</h3>
+          <h3 className="subsection-title">
+            Feature adoption
+            <InfoTooltip text={DEFINITIONS.adoption} />
+          </h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={adoptionData} layout="vertical" margin={{ left: 40 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#333" />
@@ -185,7 +218,10 @@ export default function MetricsDashboard() {
       <section>
         <h2 className="section-title">Stability</h2>
         <div className="card">
-          <h3 className="subsection-title">Crash-free rate (30d)</h3>
+          <h3 className="subsection-title">
+            Crash-free rate (30d)
+            <InfoTooltip text={DEFINITIONS.crashFree} />
+          </h3>
           {crashLoading ? (
             <p className="empty-text">Loading…</p>
           ) : crashError ? (
