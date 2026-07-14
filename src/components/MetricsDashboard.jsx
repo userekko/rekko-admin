@@ -23,6 +23,8 @@ const DEFINITIONS = {
     'How many users currently have a 0-day, 1-6 day, 7-29 day, or 30+ day consecutive logging streak.',
   adoption:
     'How many users have tried this feature at least once, and what percentage of your total users that represents.',
+  voiceLogging:
+    "How often people use voice logging (AI food logger vs. Coach), and how often a session runs long enough to hit the 60-second recording cap rather than ending naturally — the number that matters for deciding whether that cap is worth revisiting.",
   crashFree:
     'The percentage of app sessions in the last 30 days that did NOT experience a crash. Higher is better — 100% would mean zero crashes.',
   deletions: 'How many users deleted their account in this time window.',
@@ -116,6 +118,14 @@ export default function MetricsDashboard() {
     count: adoption[row.key] ?? 0,
   }))
 
+  const voiceLogging = stats.voice_logging ?? {}
+  const voiceLoggingTotal = voiceLogging.total_sessions ?? 0
+  const voiceLoggingByScreen = [
+    { screen: 'AI food logger', count: voiceLogging.ai_food_logger_sessions ?? 0 },
+    { screen: 'Coach', count: voiceLogging.coach_sessions ?? 0 },
+  ]
+  const maxDurationSessions = voiceLogging.max_duration_sessions ?? 0
+
   return (
     <div className="dashboard">
       <section>
@@ -203,6 +213,50 @@ export default function MetricsDashboard() {
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="card">
+          <h3 className="subsection-title">
+            Voice logging
+            <InfoTooltip text={DEFINITIONS.voiceLogging} />
+          </h3>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={voiceLoggingByScreen} layout="vertical" margin={{ left: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+              <XAxis type="number" allowDecimals={false} stroke="#999" />
+              <YAxis type="category" dataKey="screen" stroke="#999" width={140} />
+              <Tooltip
+                contentStyle={{ background: '#1e1e1e', border: '1px solid #333' }}
+              />
+              <Bar dataKey="count" fill={BAR_COLOR} radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="adoption-table">
+            <div className="adoption-row">
+              <span>Total sessions</span>
+              <span>{voiceLoggingTotal}</span>
+            </div>
+            <div className="adoption-row">
+              <span>AI food logger</span>
+              <span>
+                {voiceLogging.ai_food_logger_sessions ?? 0} (
+                {pct(voiceLogging.ai_food_logger_sessions ?? 0, voiceLoggingTotal)})
+              </span>
+            </div>
+            <div className="adoption-row">
+              <span>Coach</span>
+              <span>
+                {voiceLogging.coach_sessions ?? 0} (
+                {pct(voiceLogging.coach_sessions ?? 0, voiceLoggingTotal)})
+              </span>
+            </div>
+            <div className="adoption-row">
+              <span>Hit 60s max-duration cap</span>
+              <span>
+                {maxDurationSessions} ({pct(maxDurationSessions, voiceLoggingTotal)})
+              </span>
+            </div>
           </div>
         </div>
       </section>
